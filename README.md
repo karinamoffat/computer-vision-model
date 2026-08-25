@@ -5,6 +5,11 @@ trained on Pascal VOC 2012 (21 classes). Built to understand segmentation
 end-to-end rather than to beat a benchmark — the interesting part is what the
 baseline gets wrong and why.
 
+![Qualitative results](results/qualitative.png)
+
+*`resnet18` predictions on six VOC val images. Row 3 is the honest failure case:
+a small, low-contrast boat against water goes almost entirely undetected.*
+
 ---
 
 ## Model
@@ -59,12 +64,32 @@ it should not be read as evidence that skips work; it is within the run-to-run
 variation you would expect from changing nothing but the seed. Confirming or
 refuting it needs several seeds per variant, which has not been run.
 
-**Both from-scratch variants converge to roughly background-only prediction.**
-VOC is mostly background, and a model that predicts background everywhere scores
+**Both from-scratch variants sit barely above background-only prediction.** VOC
+is mostly background, and a model that predicts background everywhere scores
 about 0.70 on that one class and 0 on the other twenty — a 21-class mean near
-0.033. At 0.0610 and 0.0649 these two are only just above that floor. Their loss
-curves had flattened by epoch 30, so this is a plateau rather than an
-interrupted run: more epochs at this learning rate would not have rescued them.
+0.033. At 0.0610 and 0.0649 these two are only just above that floor.
+
+**All three numbers are lower bounds, not converged results.** See the curves
+below: validation loss flattens by roughly epoch 15, but validation mIoU is
+still climbing at epoch 30 in every run — all three best scores land on or near
+the final epoch. Cross-entropy is dominated by the many easy background pixels,
+so it saturates while per-class IoU on the rare classes is still improving; the
+loss curve going flat is not evidence of convergence here. 30 epochs was the
+budget, not the point where the models stopped learning. `resnet18` additionally
+shows train and val mIoU separating from about epoch 18 (0.535 train vs 0.4315
+val), so extending its schedule would need regularisation or more data, not just
+more epochs.
+
+### Training curves
+
+| `baseline` | `unet` | `resnet18` |
+| ---------- | ------ | ---------- |
+| ![](results/mIoU_baseline.png) | ![](results/mIoU_unet.png) | ![](results/mIoU_resnet18.png) |
+| ![](results/loss_baseline.png) | ![](results/loss_unet.png) | ![](results/loss_resnet18.png) |
+
+Top row mean IoU, bottom row loss; train and validation on each. Note the shape
+difference between the two rows — that gap is the reason the numbers above are
+reported as a floor.
 
 ### Not comparable to the number this README used to report
 

@@ -175,8 +175,9 @@ Three variants behind a single `--arch` flag, one table:
 
 **DONE** (2026-08-25, Colab T4, `--seed 0 -e 30 -b 16 --augment --amp`).
 Pretraining is worth 7x; the skips gap (+0.0039) is within single-seed noise and
-is reported as uncalled, not as a win. Both from-scratch variants plateaued near
-background-only prediction (~0.033 floor).
+is reported as uncalled, not as a win. Both from-scratch variants sit barely
+above the background-only floor (~0.033). All three are lower bounds: val loss
+flattens by ~epoch 15 but val mIoU is still rising at epoch 30 in every run.
 
 - **Verify:** all three train from the same script, same val split, same seed;
   table lands in the README.
