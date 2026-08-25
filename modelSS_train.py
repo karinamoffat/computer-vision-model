@@ -10,7 +10,7 @@ import argparse
 import datetime
 import random
 import matplotlib.pyplot as plt
-from torchvision.transforms import Resize
+from torchvision.transforms import Resize, InterpolationMode
 
 # Default parameters
 save_file = 'modelSS_weights.pth'
@@ -29,10 +29,11 @@ def set_seed(seed):
 
 def transform(image, target):
     resize = Resize((256, 256))
-    
-    #eesize both image and target
+    resize_mask = Resize((256, 256), interpolation=InterpolationMode.NEAREST)
+
+    #resize both image and target
     image = resize(image)
-    target = resize(target)
+    target = resize_mask(target)
     
     #convert image to tensor and normalize
     image = F.to_tensor(image)
@@ -46,6 +47,10 @@ def transform(image, target):
 def compute_mIoU(pred, target, num_classes):
     pred = torch.argmax(pred, dim=1).squeeze(0).cpu().numpy()
     target = target.squeeze(0).cpu().numpy()
+
+    valid = target != 255
+    pred = pred[valid]
+    target = target[valid]
 
     ious = []
     for cls in range(num_classes):
@@ -109,9 +114,6 @@ def train(n_epochs, optimizer, model, loss_fn, train_loader, scheduler, device, 
         #for tracking while running - time, epoch and training loss outputted
         print(f'{datetime.datetime.now()} Epoch {epoch}, Loss: {epoch_loss / len(train_loader):.4f}, mIoU: {epoch_miou / len(train_loader):.4f}')
 
-        '''print('{} Epoch {}, Training loss {}'.format(
-            datetime.datetime.now(), epoch, epoch_loss/len(train_loader)))'''
-        
         #save weights after each epoch
         if save_file:
             torch.save(model.state_dict(), save_file)
@@ -119,18 +121,18 @@ def train(n_epochs, optimizer, model, loss_fn, train_loader, scheduler, device, 
         # Update and save plot after each epoch
         if plot_file:
             #loss plot
-            plt.figure(figsize=(10, 5))
-            plt.clf()
+            fig = plt.figure(figsize=(10, 5))
             plt.plot(train_losses, label='Loss')
             plt.xlabel('Epoch')
             plt.ylabel('Value')
             plt.title('Training Metrics')
+            plt.legend()
             print(f'Saving loss plot to {plot_file}')
             plt.savefig(f"loss_{plot_file}")
+            plt.close(fig)
 
             #mIoU plot
-            plt.figure(figsize=(10, 5))
-            plt.clf()
+            fig = plt.figure(figsize=(10, 5))
             plt.plot(miou_scores, label='Mean mIoU', color='green')
             plt.xlabel('Epoch')
             plt.ylabel('Mean mIoU')
@@ -138,10 +140,11 @@ def train(n_epochs, optimizer, model, loss_fn, train_loader, scheduler, device, 
             plt.legend()
             print(f'Saving mIoU plot to {plot_file}')
             plt.savefig(f"mIoU_{plot_file}")
+            plt.close(fig)
 
 
 def main():
-    global save_file, n_epochs, batch_size, learning_rate, plot_file, seed
+    global save_file, n_epochs, batch_size, learning_rate, adam_decay, plot_file, seed
 
     print('running main ...')
 
@@ -150,6 +153,8 @@ def main():
     argParser.add_argument('-e', metavar='epochs', type=int, help='Number of epochs', default=n_epochs)
     argParser.add_argument('-b', metavar='batch_size', type=int, help='Batch size', default=batch_size)
     argParser.add_argument('-p', metavar='plot', type=str, help='Path to save loss plot (.png)', default=plot_file)
+    argParser.add_argument('--lr', metavar='learning_rate', type=float, help='Learning rate', default=learning_rate)
+    argParser.add_argument('--weight-decay', metavar='weight_decay', type=float, help='Adam weight decay', default=adam_decay)
     argParser.add_argument('--seed', type=int, help='Random seed', default=seed)
     args = argParser.parse_args()
 
@@ -161,6 +166,10 @@ def main():
         batch_size = args.b
     if args.p != None:
         plot_file = args.p
+    if args.lr != None:
+        learning_rate = args.lr
+    if args.weight_decay != None:
+        adam_decay = args.weight_decay
     if args.seed != None:
         seed = args.seed
 
@@ -179,26 +188,10 @@ def main():
     root='./data', year='2012', image_set='train', download=True,
     transforms=lambda img, tgt: transform(img, tgt))
 
-    #print vars
-    '''print(f'\t\tn epochs = {n_epochs}')
-    print(f'\t\tbatch size = {batch_size}')
-    print(f'\t\tlearning rate = {learning_rate}')
-    print(f'\t\tsave file = {save_file}')
-    print(f'\t\tplot file = {plot_file}')'''
-
     #define data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     #define optimizer, loss, and learning rate scheduler
-
-    '''optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=1e-2,
-        momentum=0.9,
-        weight_decay=1e-4
-    )
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)'''
-
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=adam_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     loss_fn = nn.CrossEntropyLoss(ignore_index=255)

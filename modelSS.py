@@ -14,7 +14,7 @@ class modelSS(nn.Module):
         self.bn2 = nn.BatchNorm2d(128)
 
         self.conv3 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=2, padding=1)
-        self.bn2 = nn.BatchNorm2d(256)
+        self.bn3 = nn.BatchNorm2d(256)
 
         #bottleneck
         self.bottleneck = nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1)
@@ -33,16 +33,16 @@ class modelSS(nn.Module):
 
     def forward(self, x):
         #encoder
-        x = self.relu(self.conv1(x))
-        x = self.relu(self.conv2(x))
-        x = self.relu(self.conv3(x))
-        
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x)))
+
         #bottleneck
-        x = self.relu(self.bottleneck(x))
-        
+        x = self.relu(self.bn_bottleneck(self.bottleneck(x)))
+
         #decoder
-        x = self.relu(self.deconv1(x))
-        x = self.relu(self.deconv2(x))
+        x = self.relu(self.bn_deconv1(self.deconv1(x)))
+        x = self.relu(self.bn_deconv2(self.deconv2(x)))
         x = self.deconv3(x)  # Output segmentation map
-        
+
         return x
