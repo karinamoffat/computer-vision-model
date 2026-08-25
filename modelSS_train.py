@@ -8,6 +8,7 @@ from modelSS import modelSS
 import numpy as np
 import argparse
 import datetime
+import random
 import matplotlib.pyplot as plt
 from torchvision.transforms import Resize
 
@@ -18,6 +19,13 @@ batch_size = 64
 learning_rate = 1e-4
 adam_decay = 1e-3
 plot_file = 'plot.png'
+seed = 0
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 def transform(image, target):
     resize = Resize((256, 256))
@@ -133,9 +141,30 @@ def train(n_epochs, optimizer, model, loss_fn, train_loader, scheduler, device, 
 
 
 def main():
-    global save_file, n_epochs, batch_size, learning_rate, plot_file
+    global save_file, n_epochs, batch_size, learning_rate, plot_file, seed
 
     print('running main ...')
+
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument('-w', metavar='weights', type=str, help='Path to save weights file (.pth)', default=save_file)
+    argParser.add_argument('-e', metavar='epochs', type=int, help='Number of epochs', default=n_epochs)
+    argParser.add_argument('-b', metavar='batch_size', type=int, help='Batch size', default=batch_size)
+    argParser.add_argument('-p', metavar='plot', type=str, help='Path to save loss plot (.png)', default=plot_file)
+    argParser.add_argument('--seed', type=int, help='Random seed', default=seed)
+    args = argParser.parse_args()
+
+    if args.w != None:
+        save_file = args.w
+    if args.e != None:
+        n_epochs = args.e
+    if args.b != None:
+        batch_size = args.b
+    if args.p != None:
+        plot_file = args.p
+    if args.seed != None:
+        seed = args.seed
+
+    set_seed(seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
@@ -147,26 +176,8 @@ def main():
 
     #load dataset
     train_dataset = VOCSegmentation(
-    root='./data', year='2012', image_set='train', download=True, 
+    root='./data', year='2012', image_set='train', download=True,
     transforms=lambda img, tgt: transform(img, tgt))
-
-    argParser = argparse.ArgumentParser()
-    argParser.add_argument('-w', metavar='weights', type=str, help='Path to save weights file (.pth)', default=save_file)
-    argParser.add_argument('-e', metavar='epochs', type=int, help='Number of epochs', default=n_epochs)
-    argParser.add_argument('-b', metavar='batch_size', type=int, help='Batch size', default=batch_size)
-    argParser.add_argument('-p', metavar='plot', type=str, help='Path to save loss plot (.png)', default=plot_file)
-    args = argParser.parse_args()
-
-    args = argParser.parse_args()
-
-    if args.w != None:
-        save_file = args.w
-    if args.e != None:
-        n_epochs = args.e
-    if args.b != None:
-        batch_size = args.b
-    if args.p != None:
-        plot_file = args.p
 
     #print vars
     '''print(f'\t\tn epochs = {n_epochs}')
