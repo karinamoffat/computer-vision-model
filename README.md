@@ -102,7 +102,21 @@ every class the model never learned was excluded instead of scoring zero. The
 number here counts those failures. It was removed rather than updated because no
 honest arithmetic converts one into the other.
 
-Reproduce with:
+### Pretrained checkpoints
+
+All three trained checkpoints are attached to the
+[v0.1.0 release](https://github.com/karinamoffat/voc-semantic-segmentation/releases/tag/v0.1.0)
+if you would rather not retrain: `resnet18.pth` (50 MB), `unet.pth` (12 MB),
+`baseline.pth` (12 MB). Each is the best-validation-mIoU checkpoint from the run
+reported above. Match `--arch` to the checkpoint you load -- the weights will not
+fit another variant's graph.
+
+```bash
+curl -LO https://github.com/karinamoffat/voc-semantic-segmentation/releases/download/v0.1.0/resnet18.pth
+python predict.py --arch resnet18 -w resnet18.pth -n 6
+```
+
+Reproduce from scratch with:
 
 ```bash
 for a in baseline unet resnet18; do

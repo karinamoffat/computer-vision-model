@@ -156,7 +156,7 @@ GitHub Action running `ruff check` + `pytest` on push.
 | T3-3 | `scheduler.step()` should consume mean epoch loss, not the sum (`modelSS_train.py:96`); switch to **val** loss once T2-1 lands                                  | LR reductions log at sane epochs                              |
 | T3-4 | Hyperparameter sanity: Adam `weight_decay=1e-3` is aggressive for segmentation (try 1e-4); `batch_size=64` at 256x256 OOMs most consumer GPUs - default to 8-16 | Documented default trains on a 12 GB card                     |
 | T3-5 | Add augmentation (random horizontal flip, random scale/crop) applied identically to image and mask                                                              | Val mIoU improves or is unchanged; flipped pairs stay aligned |
-| T3-6 | Rename repo `computer-vision-model` to `voc-semantic-segmentation` (GitHub settings)                                                                            | Old URL redirects; README links resolve                       |
+| T3-6 | Rename repo `computer-vision-model` to `voc-semantic-segmentation` (GitHub settings) - **DONE** (2026-08-25)                                                     | Old URL redirects; README links resolve                       |
 | T3-7 | Optional: mixed precision (`torch.amp`) + epoch wall-clock in README                                                                                            | Loss curve matches FP32 within noise; step time drops         |
 
 ---
