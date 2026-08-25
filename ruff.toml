@@ -1,10 +1,18 @@
 line-length = 120
 
 [lint]
-select = ["E", "F", "W"]
-# E501: long lines are common in the argparse/plot blocks
-# E741: not applicable, kept for clarity
-ignore = ["E501"]
+# D: docstrings, I: import order, UP: pyupgrade
+select = ["E", "F", "W", "D", "I", "UP"]
+ignore = [
+    "E501",  # long lines are common in the argparse/plot blocks
+    "D203",  # incompatible with D211
+    "D213",  # incompatible with D212
+    "D401",  # imperative-mood nitpicking
+]
+
+[lint.pydocstyle]
+convention = "google"
 
 [lint.per-file-ignores]
-"conftest.py" = ["E402"]
+"conftest.py" = ["E402", "D100"]
+"tests/*" = ["D100", "D103", "D105", "D107"]

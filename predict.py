@@ -1,13 +1,20 @@
-import torch
-import numpy as np
+"""Render qualitative segmentation results from a trained modelSS checkpoint."""
+
 import argparse
-import random
+import logging
 import os
+
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from torchvision.datasets import VOCSegmentation
+from torchvision.transforms import InterpolationMode, Resize
 from torchvision.transforms import functional as F
-from torchvision.transforms import Resize, InterpolationMode
+
 from modelSS import modelSS
+from modelSS_train import NUM_CLASSES, set_seed
+
+log = logging.getLogger(__name__)
 
 # Default parameters
 weights_file = 'modelSS_weights.pth'
@@ -15,17 +22,11 @@ num_images = 6
 output_file = 'results/qualitative.png'
 data_root = './data'
 seed = 0
+log_level = 'INFO'
 
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def voc_cmap(N=256):
-    #standard VOC palette via bit-shifting, entry 255 is the void colour
+def voc_cmap(N: int = 256) -> np.ndarray:
+    """Build the standard VOC colour palette; entry 255 is the void colour."""
     def bitget(byteval, idx):
         return (byteval & (1 << idx)) != 0
 
@@ -43,12 +44,17 @@ def voc_cmap(N=256):
     return cmap
 
 
-def colorize(mask, cmap):
-    #mask is a 2D array of class ids (0-20) plus 255 for void
+def colorize(mask, cmap: np.ndarray) -> np.ndarray:
+    """Map a 2D array of class ids (0-20, plus 255 for void) to RGB."""
     return cmap[np.asarray(mask, dtype=np.uint8)]
 
 
-def preprocess(image, target):
+def preprocess(image, target) -> tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    """Resize and normalise a PIL pair, also returning an un-normalised RGB copy.
+
+    The display copy is why this cannot be handed to ``VOCSegmentation``'s own
+    ``transforms`` hook, which unpacks exactly two values.
+    """
     resize = Resize((256, 256))
     resize_mask = Resize((256, 256), interpolation=InterpolationMode.NEAREST)
 
@@ -69,7 +75,19 @@ def preprocess(image, target):
     return image, target, display
 
 
-def predict(model, dataset, n, device, cmap, output_file):
+def predict(
+    model: torch.nn.Module,
+    dataset,
+    n: int,
+    device: torch.device,
+    cmap: np.ndarray,
+    output_file: str,
+) -> str:
+    """Save an image / ground-truth / prediction grid for the first ``n`` samples.
+
+    Returns:
+        The path the grid was written to.
+    """
     n = min(n, len(dataset))
     cols = ['Image', 'Ground Truth', 'Prediction']
 
@@ -105,27 +123,35 @@ def predict(model, dataset, n, device, cmap, output_file):
 
     plt.savefig(output_file)
     plt.close(fig)
-    print(f'Saved qualitative results to {output_file}')
+    log.info('Saved qualitative results to %s', output_file)
+    return output_file
 
 
-def main():
-    print('running main ...')
-
-    argParser = argparse.ArgumentParser()
+def main() -> None:
+    """Parse arguments, load a checkpoint, and render the qualitative grid."""
+    argParser = argparse.ArgumentParser(description=__doc__)
     argParser.add_argument('-w', '--weights', type=str, help='Path to weights file (.pth)', default=weights_file)
     argParser.add_argument('-n', '--num-images', type=int, help='Number of validation images to show', default=num_images)
     argParser.add_argument('-o', '--output', type=str, help='Path to save the results grid (.png)', default=output_file)
     argParser.add_argument('--data-root', type=str, help='Root directory of the VOC dataset', default=data_root)
     argParser.add_argument('--seed', type=int, help='Random seed', default=seed)
+    argParser.add_argument('--log-level', type=str, default=log_level,
+                           choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], help='Logging verbosity')
     args = argParser.parse_args()
+
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format='%(asctime)s %(levelname)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
 
     set_seed(args.seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Using device: {device}')
+    log.info('Using device: %s', device)
 
     #model load
-    model = modelSS(num_classes=21)
+    model = modelSS(num_classes=NUM_CLASSES)
     model.load_state_dict(torch.load(args.weights, map_location=device))
     model.to(device)
 

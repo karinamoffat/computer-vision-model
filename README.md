@@ -77,15 +77,19 @@ python modelSS_train.py -e 30 -b 16 --lr 1e-4 --num-workers 4
 | Flag | Meaning | Default |
 | ---- | ------- | ------- |
 | `-e` | epochs | 30 |
-| `-b` | batch size | 64 |
+| `-b` | batch size | 16 |
 | `-w` | checkpoint path | `modelSS_weights.pth` |
 | `-p` | plot filename suffix | `plot.png` |
 | `--lr` | learning rate | 1e-4 |
-| `--weight-decay` | Adam weight decay | 1e-3 |
+| `--weight-decay` | Adam weight decay | 1e-4 |
 | `--num-workers` | dataloader workers | 0 |
+| `--augment` | random flip + scale/crop on the train split | off |
+| `--amp` | mixed precision (CUDA only) | off |
 | `--seed` | random seed | 0 |
+| `--log-level` | logging verbosity | `INFO` |
 
 The checkpoint is saved on **best validation mIoU**, not every epoch.
+`--log-level DEBUG` adds a per-class IoU table each epoch.
 
 Qualitative results:
 
@@ -103,10 +107,14 @@ pytest
 
 ## Notes on defaults
 
-`-b 64` at 256×256 will OOM most consumer GPUs; 8–16 is a more realistic
-starting point. Adam `weight_decay=1e-3` is also aggressive for segmentation —
-1e-4 is the more common choice. Both are left at their original values so the
-retrain is comparable to the original run.
+Two defaults were changed from the original run. Batch size dropped from 64 to
+16, because 64 at 256×256 OOMs most consumer GPUs, and Adam `weight_decay` from
+1e-3 to 1e-4, which is the more usual choice for segmentation — 1e-3 was likely
+over-regularising a model this small. Pass `-b 64 --weight-decay 1e-3` to
+reproduce the original configuration.
+
+Augmentation is off by default and applies to the training split only; the
+validation split is never augmented, so val numbers stay comparable across runs.
 
 ---
 
@@ -114,8 +122,6 @@ retrain is comparable to the original run.
 
 * U-Net skip connections and a pretrained ResNet-18 encoder, as an ablation
   against the current from-scratch baseline
-* Augmentation (random flip, random scale/crop) applied jointly to image and mask
-* Mixed precision
 
 ---
 
