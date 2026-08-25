@@ -1,6 +1,4 @@
-import torch  # For tensor operations
 import torch.nn as nn  # For defining neural network layers
-import torch.nn.functional as F  # For using activation functions, etc.
 
 class modelSS(nn.Module):
     def __init__(self, num_classes=21):

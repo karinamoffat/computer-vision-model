@@ -1,0 +1,10 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "W"]
+# E501: long lines are common in the argparse/plot blocks
+# E741: not applicable, kept for clarity
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+"conftest.py" = ["E402"]
