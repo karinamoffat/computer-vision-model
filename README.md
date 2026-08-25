@@ -1,6 +1,3 @@
-Here’s a more concise, professional version of your README without emojis:
-
----
 
 # Semantic Segmentation Model (PyTorch)
 
