@@ -11,7 +11,7 @@ from torchvision.datasets import VOCSegmentation
 from torchvision.transforms import InterpolationMode, Resize
 from torchvision.transforms import functional as F
 
-from modelSS import modelSS
+from modelSS import ARCHITECTURES, build_model
 from modelSS_train import NUM_CLASSES, set_seed
 
 log = logging.getLogger(__name__)
@@ -133,6 +133,8 @@ def main() -> None:
     argParser.add_argument('-w', '--weights', type=str, help='Path to weights file (.pth)', default=weights_file)
     argParser.add_argument('-n', '--num-images', type=int, help='Number of validation images to show', default=num_images)
     argParser.add_argument('-o', '--output', type=str, help='Path to save the results grid (.png)', default=output_file)
+    argParser.add_argument('--arch', type=str, default='baseline', choices=list(ARCHITECTURES),
+                           help='Architecture the checkpoint was trained with')
     argParser.add_argument('--data-root', type=str, help='Root directory of the VOC dataset', default=data_root)
     argParser.add_argument('--seed', type=int, help='Random seed', default=seed)
     argParser.add_argument('--log-level', type=str, default=log_level,
@@ -150,8 +152,8 @@ def main() -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log.info('Using device: %s', device)
 
-    #model load
-    model = modelSS(num_classes=NUM_CLASSES)
+    #model load - pretrained weights are irrelevant, the checkpoint overwrites them
+    model = build_model(args.arch, num_classes=NUM_CLASSES, pretrained=False)
     model.load_state_dict(torch.load(args.weights, map_location=device))
     model.to(device)
 

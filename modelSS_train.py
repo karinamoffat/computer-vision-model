@@ -16,7 +16,7 @@ from torchvision.datasets import VOCSegmentation
 from torchvision.transforms import InterpolationMode, RandomCrop, Resize
 from torchvision.transforms import functional as F
 
-from modelSS import modelSS
+from modelSS import ARCHITECTURES, build_model
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ plot_file = 'plot.png'
 num_workers = 0
 seed = 0
 log_level = 'INFO'
+arch = 'baseline'
 
 NUM_CLASSES = 21
 VOID_LABEL = 255
@@ -325,6 +326,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument('--lr', metavar='learning_rate', type=float, help='Learning rate', default=learning_rate)
     parser.add_argument('--weight-decay', metavar='weight_decay', type=float, help='Adam weight decay', default=adam_decay)
     parser.add_argument('--num-workers', metavar='num_workers', type=int, help='DataLoader worker processes', default=num_workers)
+    parser.add_argument('--arch', type=str, default=arch, choices=list(ARCHITECTURES),
+                        help='Architecture variant to train')
+    parser.add_argument('--no-pretrained', action='store_true',
+                        help='Train the resnet18 arch from scratch instead of ImageNet weights')
     parser.add_argument('--augment', action='store_true', help='Enable train-time flip and scale/crop augmentation')
     parser.add_argument('--amp', action='store_true', help='Enable mixed precision (CUDA only)')
     parser.add_argument('--seed', type=int, help='Random seed', default=seed)
@@ -354,8 +359,10 @@ def main() -> None:
         use_amp = False
 
     #model load
-    model = modelSS(num_classes=NUM_CLASSES)
+    model = build_model(args.arch, num_classes=NUM_CLASSES, pretrained=not args.no_pretrained)
     model.to(device)
+    n_params = sum(p.numel() for p in model.parameters())
+    log.info('arch: %s (%.1fM parameters)', args.arch, n_params / 1e6)
 
     #load datasets - train split augmented, val split never is
     train_dataset = VOCSegmentation(

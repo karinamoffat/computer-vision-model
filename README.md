@@ -9,15 +9,20 @@ baseline gets wrong and why.
 
 ## Model
 
-| Stage | Layers |
-| ----- | ------ |
-| Encoder | 3 × (Conv 3×3 stride 2 → BatchNorm → ReLU), 3 → 64 → 128 → 256 |
-| Bottleneck | Conv 3×3 → BatchNorm → ReLU, 256 → 512 |
-| Decoder | 3 × (ConvTranspose 3×3 stride 2 → BatchNorm → ReLU), 512 → 256 → 128 → 21 |
+Three architectures share one training script, selected with `--arch`:
 
-Input `(N, 3, 256, 256)` → output `(N, 21, 256, 256)` logits. No skip
-connections and no pretrained weights — deliberately, so later variants have
-something to improve on.
+| `--arch` | Encoder | Decoder | Params |
+| -------- | ------- | ------- | ------ |
+| `baseline` | 3 × Conv stride 2, from scratch | 3 × ConvTranspose, no skips | 3.1M |
+| `unet` | same as baseline | same widths, plus skip connections | 3.2M |
+| `resnet18` | ImageNet-pretrained ResNet-18 | 5 × ConvTranspose, with skips | 13.2M |
+
+All take `(N, 3, 256, 256)` and return `(N, 21, 256, 256)` logits.
+
+`baseline` and `unet` differ by 0.1M parameters, so a gap between them is
+attributable to the skip connections rather than to capacity. `resnet18` is a
+much larger model and is not a controlled comparison — it is there to show how
+far a pretrained encoder moves the number.
 
 ---
 
@@ -30,11 +35,24 @@ something to improve on.
 > that is not comparable to published VOC numbers. Re-running is required before
 > any number belongs in this table.
 
-| Metric | Value |
-| ------ | ----- |
-| Val mIoU | _pending_ |
-| Val loss | _pending_ |
-| Baseline: torchvision FCN-ResNet50 | ≈ 0.66 val mIoU |
+### Architecture ablation
+
+Same script, same val split, same seed — only `--arch` changes:
+
+| Variant | Val mIoU |
+| ------- | -------- |
+| `baseline` — from-scratch encoder-decoder | _pending_ |
+| `unet` — plus skip connections | _pending_ |
+| `resnet18` — plus pretrained encoder | _pending_ |
+| _reference:_ torchvision FCN-ResNet50 | ≈ 0.66 |
+
+Reproduce with:
+
+```bash
+for a in baseline unet resnet18; do
+  python modelSS_train.py --arch $a --seed 0 -e 30 -w weights_$a.pth -p $a.png
+done
+```
 
 Once trained, `python predict.py` writes `results/qualitative.png` — an
 image / ground-truth / prediction grid using the standard VOC palette — and the
@@ -76,6 +94,8 @@ python modelSS_train.py -e 30 -b 16 --lr 1e-4 --num-workers 4
 
 | Flag | Meaning | Default |
 | ---- | ------- | ------- |
+| `--arch` | `baseline`, `unet` or `resnet18` | `baseline` |
+| `--no-pretrained` | train `resnet18` from scratch | off |
 | `-e` | epochs | 30 |
 | `-b` | batch size | 16 |
 | `-w` | checkpoint path | `modelSS_weights.pth` |
@@ -120,8 +140,8 @@ validation split is never augmented, so val numbers stay comparable across runs.
 
 ## Next
 
-* U-Net skip connections and a pretrained ResNet-18 encoder, as an ablation
-  against the current from-scratch baseline
+* Run the ablation above and fill in the table
+* Longer schedules and a learning-rate sweep per variant
 
 ---
 
