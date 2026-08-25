@@ -1,4 +1,6 @@
 line-length = 120
+# Colab notebooks: cell-scoped imports and shell magics do not follow module rules
+exclude = ["*.ipynb"]
 
 [lint]
 # D: docstrings, I: import order, UP: pyupgrade

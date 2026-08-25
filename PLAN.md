@@ -21,11 +21,11 @@ Items marked **(STAR)** are the highest-leverage work in the plan.
 
 ## Tier 0 - Prep (must happen first, ~15 min)
 
-| # | Task | Verify |
-|---|------|--------|
+| #    | Task                                                                                               | Verify                                                                         |
+| ---- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | T0-1 | Create branch; add `requirements.txt` with pinned `torch` / `torchvision` / `matplotlib` / `numpy` | `pip install -r requirements.txt` succeeds; `torch.cuda.is_available()` prints |
-| T0-2 | Add `torch.manual_seed` / `np.random.seed` / `random.seed` behind a `--seed` flag | Two 1-epoch runs on the same seed give identical loss to 4 decimals |
-| T0-3 | Add smoke test `tests/test_model.py`: one forward pass, assert output shape `(2, 21, 256, 256)` | `pytest` passes |
+| T0-2 | Add `torch.manual_seed` / `np.random.seed` / `random.seed` behind a `--seed` flag                  | Two 1-epoch runs on the same seed give identical loss to 4 decimals            |
+| T0-3 | Add smoke test `tests/test_model.py`: one forward pass, assert output shape `(2, 21, 256, 256)`    | `pytest` passes                                                                |
 
 T0-2 and T0-3 come first because they are the verification harness for
 everything after them.
@@ -44,15 +44,7 @@ and line 17 clobbers the 128-channel `bn2`. Rename the 256-channel layer to
 - **Why:** likely the actual cause of the plateau. Converts the README's
   weakest sentence into a debugging story.
 
-### T1-2. Delete the LLM preamble from README line 1
-
-The README currently opens with "Here's a more concise, professional version of
-your README without emojis:". (~5 seconds)
-
-- **Verify:** README opens with the `#` heading.
-- **Why:** first thing every human reader sees.
-
-### T1-3. Exclude void (255) pixels from mIoU
+### T1-2. Exclude void (255) pixels from mIoU
 
 `modelSS_train.py:38-55` - the loss uses `ignore_index=255` but the metric does
 not, so void pixels inflate the union. Mask both `pred` and `target` with
@@ -60,21 +52,21 @@ not, so void pixels inflate the union. Mask both `pred` and `target` with
 
 - **Verify:** on one batch, mIoU is strictly higher than the unmasked value.
 
-### T1-4. Make mask resizing explicit: `InterpolationMode.NEAREST`
+### T1-3. Make mask resizing explicit: `InterpolationMode.NEAREST`
 
 `modelSS_train.py:23-27` - currently correct only because Pillow silently
 forces NEAREST on `P`-mode images. (~2 lines)
 
 - **Verify:** `np.unique(target)` after transform is a subset of `{0..20, 255}`.
 
-### T1-5. Add `.gitignore` + `LICENSE`; remove the 12 MB `.pth` from the tree
+### T1-4. Add `.gitignore` + `LICENSE`; remove the 12 MB `.pth` from the tree
 
 `git rm --cached` the weights, ignore `*.pth` and `data/`, re-attach weights to
 a GitHub Release.
 
 - **Verify:** `git ls-files` shows no `.pth`; clone size drops below 100 KB.
 
-### T1-6. Fix the figure leak and the missing legend
+### T1-5. Fix the figure leak and the missing legend
 
 `modelSS_train.py:112-132` - `plt.figure()` every epoch with no `plt.close()`;
 loss plot sets `label=` but never calls `plt.legend()`. Drop the redundant
@@ -82,7 +74,7 @@ loss plot sets `label=` but never calls `plt.legend()`. Drop the redundant
 
 - **Verify:** after a 5-epoch run, `len(plt.get_fignums()) <= 1`.
 
-### T1-7. Clean up the argparse block
+### T1-6. Clean up the argparse block
 
 `modelSS_train.py:136,153-169` - `parse_args()` called twice, parsing happens
 after the dataset download, `global learning_rate` is never assigned, and
@@ -90,7 +82,7 @@ after the dataset download, `global learning_rate` is never assigned, and
 
 - **Verify:** `--help` lists all six params; `-e 1 --lr 1e-3` changes behavior.
 
-### T1-8. Delete the commented-out dead code blocks
+### T1-7. Delete the commented-out dead code blocks
 
 `modelSS_train.py:104-105,172-176,183-189`.
 
@@ -118,7 +110,7 @@ image - not comparable to any published VOC number - and runs 64 numpy
 round-trips per batch on CPU (`modelSS_train.py:80-83`). Use a single
 `torch.bincount`-based 21x21 accumulator on-GPU, IoU computed at epoch end.
 Closes the non-standard-metric gap and the performance gap together, and
-subsumes T1-3.
+subsumes T1-2.
 
 - **Verify:** per-class IoU table prints (background high, small classes near
   zero); epoch wall-clock drops substantially.
@@ -138,7 +130,7 @@ Val mIoU (not train), the qualitative grid, a baseline comparison line
 (torchvision FCN-ResNet50 is approximately 0.66 on VOC2012 val vs. yours), a
 per-class IoU table, and a short "what I learned / what's next".
 
-- **Verify:** no training-only metric is presented as *the* result anywhere.
+- **Verify:** no training-only metric is presented as _the_ result anywhere.
 
 ### T2-5. Make the transform picklable; enable `num_workers` + `pin_memory`
 
@@ -157,15 +149,15 @@ GitHub Action running `ruff check` + `pytest` on push.
 
 ## Tier 3 - Low effort, moderate payoff (polish)
 
-| # | Task | Verify |
-|---|------|--------|
-| T3-1 | Docstrings + type hints on all public functions | `ruff` clean with docstring rules on |
-| T3-2 | Swap `print` for `logging` with a `--log-level` flag | `--log-level DEBUG` changes verbosity |
-| T3-3 | `scheduler.step()` should consume mean epoch loss, not the sum (`modelSS_train.py:96`); switch to **val** loss once T2-1 lands | LR reductions log at sane epochs |
-| T3-4 | Hyperparameter sanity: Adam `weight_decay=1e-3` is aggressive for segmentation (try 1e-4); `batch_size=64` at 256x256 OOMs most consumer GPUs - default to 8-16 | Documented default trains on a 12 GB card |
-| T3-5 | Add augmentation (random horizontal flip, random scale/crop) applied identically to image and mask | Val mIoU improves or is unchanged; flipped pairs stay aligned |
-| T3-6 | Rename repo `computer-vision-model` to `voc-semantic-segmentation` (GitHub settings) | Old URL redirects; README links resolve |
-| T3-7 | Optional: mixed precision (`torch.amp`) + epoch wall-clock in README | Loss curve matches FP32 within noise; step time drops |
+| #    | Task                                                                                                                                                            | Verify                                                        |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| T3-1 | Docstrings + type hints on all public functions                                                                                                                 | `ruff` clean with docstring rules on                          |
+| T3-2 | Swap `print` for `logging` with a `--log-level` flag                                                                                                            | `--log-level DEBUG` changes verbosity                         |
+| T3-3 | `scheduler.step()` should consume mean epoch loss, not the sum (`modelSS_train.py:96`); switch to **val** loss once T2-1 lands                                  | LR reductions log at sane epochs                              |
+| T3-4 | Hyperparameter sanity: Adam `weight_decay=1e-3` is aggressive for segmentation (try 1e-4); `batch_size=64` at 256x256 OOMs most consumer GPUs - default to 8-16 | Documented default trains on a 12 GB card                     |
+| T3-5 | Add augmentation (random horizontal flip, random scale/crop) applied identically to image and mask                                                              | Val mIoU improves or is unchanged; flipped pairs stay aligned |
+| T3-6 | Rename repo `computer-vision-model` to `voc-semantic-segmentation` (GitHub settings)                                                                            | Old URL redirects; README links resolve                       |
+| T3-7 | Optional: mixed precision (`torch.amp`) + epoch wall-clock in README                                                                                            | Loss curve matches FP32 within noise; step time drops         |
 
 ---
 
@@ -175,11 +167,16 @@ GitHub Action running `ruff check` + `pytest` on push.
 
 Three variants behind a single `--arch` flag, one table:
 
-| Variant | Val mIoU |
-|---------|----------|
-| From-scratch encoder-decoder (current, BN fixed) | ? |
-| plus U-Net skip connections | ? |
-| plus pretrained ResNet-18 encoder | ? |
+| Variant                                          | Val mIoU |
+| ------------------------------------------------ | -------- |
+| From-scratch encoder-decoder (current, BN fixed) | 0.0610   |
+| plus U-Net skip connections                      | 0.0649   |
+| plus pretrained ResNet-18 encoder                | 0.4315   |
+
+**DONE** (2026-08-25, Colab T4, `--seed 0 -e 30 -b 16 --augment --amp`).
+Pretraining is worth 7x; the skips gap (+0.0039) is within single-seed noise and
+is reported as uncalled, not as a win. Both from-scratch variants plateaued near
+background-only prediction (~0.033 floor).
 
 - **Verify:** all three train from the same script, same val split, same seed;
   table lands in the README.
@@ -191,29 +188,28 @@ Three variants behind a single `--arch` flag, one table:
 
 ## Gap to tier coverage
 
-| Original gap | Tier |
-|--------------|------|
-| Dead BatchNorms / duplicate `bn2` | T1-1 |
-| mIoU counts void pixels | T1-3 (subsumed by T2-2) |
-| Non-standard mIoU | T2-2 |
-| Implicit mask interpolation | T1-4 |
-| **No validation set** | T2-1 |
-| No qualitative results | T2-3 |
-| No baseline comparison | T2-4 |
-| README LLM preamble | T1-2 |
-| No requirements / gitignore / license / tests / seed | T0-1, T0-3, T1-5 |
-| 12 MB `.pth` in git | T1-5 |
-| No CI | T2-6 |
-| Generic repo name | T3-6 |
-| Slow per-sample mIoU loop | T2-2 |
-| No dataloader workers / unpicklable lambda | T2-5 |
-| Globals + duplicated argparse + unexposed LR | T1-7 |
-| Figure leak + missing legend | T1-6 |
-| Commented-out dead code | T1-8 |
-| No docstrings / type hints / logging | T3-1, T3-2 |
-| Scheduler on summed loss | T3-3 |
-| Hyperparameters, no augmentation, no AMP | T3-4, T3-5, T3-7 |
-| Pretrained encoder + skip connections | T4-1 |
+| Original gap                                         | Tier                    |
+| ---------------------------------------------------- | ----------------------- |
+| Dead BatchNorms / duplicate `bn2`                    | T1-1                    |
+| mIoU counts void pixels                              | T1-2 (subsumed by T2-2) |
+| Non-standard mIoU                                    | T2-2                    |
+| Implicit mask interpolation                          | T1-3                    |
+| **No validation set**                                | T2-1                    |
+| No qualitative results                               | T2-3                    |
+| No baseline comparison                               | T2-4                    |
+| No requirements / gitignore / license / tests / seed | T0-1, T0-3, T1-4        |
+| 12 MB `.pth` in git                                  | T1-4                    |
+| No CI                                                | T2-6                    |
+| Generic repo name                                    | T3-6                    |
+| Slow per-sample mIoU loop                            | T2-2                    |
+| No dataloader workers / unpicklable lambda           | T2-5                    |
+| Globals + duplicated argparse + unexposed LR         | T1-6                    |
+| Figure leak + missing legend                         | T1-5                    |
+| Commented-out dead code                              | T1-7                    |
+| No docstrings / type hints / logging                 | T3-1, T3-2              |
+| Scheduler on summed loss                             | T3-3                    |
+| Hyperparameters, no augmentation, no AMP             | T3-4, T3-5, T3-7        |
+| Pretrained encoder + skip connections                | T4-1                    |
 
 ---
 

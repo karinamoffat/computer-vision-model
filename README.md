@@ -19,21 +19,20 @@ Three architectures share one training script, selected with `--arch`:
 
 All take `(N, 3, 256, 256)` and return `(N, 21, 256, 256)` logits.
 
-`baseline` and `unet` differ by 0.1M parameters, so a gap between them is
-attributable to the skip connections rather than to capacity. `resnet18` is a
-much larger model and is not a controlled comparison — it is there to show how
-far a pretrained encoder moves the number.
+`baseline` and `unet` differ by 0.1M parameters, so a gap between them would be
+attributable to the skip connections rather than to capacity. In practice the
+measured gap was too small to call — see Results. `resnet18` is a much larger
+model and is not a controlled comparison; it is there to show how far a
+pretrained encoder moves the number.
 
 ---
 
 ## Results
 
-> **Status: pending retrain.** The numbers previously reported here
-> (train loss ≈ 1.25, mIoU ≈ 0.30) have been removed rather than updated. They
-> were invalid in three separate ways: measured on the *training* split, produced
-> before the BatchNorm bug below was fixed, and computed with a per-image metric
-> that is not comparable to published VOC numbers. Re-running is required before
-> any number belongs in this table.
+Trained on the VOC 2012 `train` split (1464 images), evaluated on `val` (1449),
+256×256, 30 epochs, Adam `lr=1e-4`, batch 16, flip + scale/crop augmentation,
+mixed precision, `--seed 0`. mIoU is a 21-class confusion matrix accumulated
+over the full val split, void (255) pixels excluded.
 
 ### Architecture ablation
 
@@ -41,22 +40,55 @@ Same script, same val split, same seed — only `--arch` changes:
 
 | Variant | Val mIoU |
 | ------- | -------- |
-| `baseline` — from-scratch encoder-decoder | _pending_ |
-| `unet` — plus skip connections | _pending_ |
-| `resnet18` — plus pretrained encoder | _pending_ |
+| `baseline` — from-scratch encoder-decoder | 0.0610 |
+| `unet` — plus skip connections | 0.0649 |
+| `resnet18` — plus pretrained encoder | **0.4315** |
 | _reference:_ torchvision FCN-ResNet50 | ≈ 0.66 |
+
+Three things this table says, in order of how much they matter:
+
+**Pretraining is worth 7× here.** `resnet18` scores 0.4315 against the
+from-scratch baseline's 0.0610. With 1464 training images for 21 classes — about
+70 examples per class — the encoder cannot learn general visual features from
+the data available, so importing them is not an optimisation, it is the whole
+task.
+
+**The skip connections did not measurably help.** `unet` beats `baseline` by
+0.0039. That is a single-seed difference on a model that is barely learning, and
+it should not be read as evidence that skips work; it is within the run-to-run
+variation you would expect from changing nothing but the seed. Confirming or
+refuting it needs several seeds per variant, which has not been run.
+
+**Both from-scratch variants converge to roughly background-only prediction.**
+VOC is mostly background, and a model that predicts background everywhere scores
+about 0.70 on that one class and 0 on the other twenty — a 21-class mean near
+0.033. At 0.0610 and 0.0649 these two are only just above that floor. Their loss
+curves had flattened by epoch 30, so this is a plateau rather than an
+interrupted run: more epochs at this learning rate would not have rescued them.
+
+### Not comparable to the number this README used to report
+
+An earlier version of this README reported mIoU ≈ 0.30. That figure is not a
+better result than the 0.0610 above; it is a different measurement. It was taken
+on the **training** split, before the BatchNorm bug below was fixed, and with a
+per-image metric that dropped absent classes via `nanmean` — so it averaged over
+whichever handful of classes appeared in a batch rather than over all 21, and
+every class the model never learned was excluded instead of scoring zero. The
+number here counts those failures. It was removed rather than updated because no
+honest arithmetic converts one into the other.
 
 Reproduce with:
 
 ```bash
 for a in baseline unet resnet18; do
-  python modelSS_train.py --arch $a --seed 0 -e 30 -w weights_$a.pth -p $a.png
+  python modelSS_train.py --arch $a --seed 0 -e 30 -b 16 \
+    --augment --amp --num-workers 2 -w weights_$a.pth -p $a.png
 done
 ```
 
-Once trained, `python predict.py` writes `results/qualitative.png` — an
-image / ground-truth / prediction grid using the standard VOC palette — and the
-training run prints a per-class IoU table each epoch.
+`python predict.py --arch resnet18 -w weights_resnet18.pth` writes
+`results/qualitative.png` — an image / ground-truth / prediction grid using the
+standard VOC palette. `--log-level DEBUG` adds a per-class IoU table each epoch.
 
 ---
 
@@ -140,7 +172,10 @@ validation split is never augmented, so val numbers stay comparable across runs.
 
 ## Next
 
-* Run the ablation above and fill in the table
+* Multiple seeds per variant, so the `baseline` vs `unet` gap can be called
+  either way instead of left as noise
+* Train on the SBD-augmented split (~10k images) — the 1464-image `train` split
+  is the binding constraint on the from-scratch variants, not the architecture
 * Longer schedules and a learning-rate sweep per variant
 
 ---
