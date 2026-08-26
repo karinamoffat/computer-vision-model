@@ -2,7 +2,7 @@
 
 A from-scratch convolutional encoder–decoder for pixel-wise semantic segmentation,
 trained on Pascal VOC 2012 (21 classes). Built to understand segmentation
-end-to-end rather than to beat a benchmark — the interesting part is what the
+end-to-end rather than to beat a benchmark. The interesting part is what the
 baseline gets wrong and why.
 
 ![Qualitative results](results/qualitative.png)
@@ -26,7 +26,7 @@ All take `(N, 3, 256, 256)` and return `(N, 21, 256, 256)` logits.
 
 `baseline` and `unet` differ by 0.1M parameters, so a gap between them would be
 attributable to the skip connections rather than to capacity. In practice the
-measured gap was too small to call — see Results. `resnet18` is a much larger
+measured gap was too small to call (see Results). `resnet18` is a much larger
 model and is not a controlled comparison; it is there to show how far a
 pretrained encoder moves the number.
 
@@ -41,7 +41,7 @@ over the full val split, void (255) pixels excluded.
 
 ### Architecture ablation
 
-Same script, same val split, same seed — only `--arch` changes:
+Same script, same val split, same seed, only `--arch` changes:
 
 | Variant | Val mIoU |
 | ------- | -------- |
@@ -53,8 +53,8 @@ Same script, same val split, same seed — only `--arch` changes:
 Three things this table says, in order of how much they matter:
 
 **Pretraining is worth 7× here.** `resnet18` scores 0.4315 against the
-from-scratch baseline's 0.0610. With 1464 training images for 21 classes — about
-70 examples per class — the encoder cannot learn general visual features from
+from-scratch baseline's 0.0610. With 1464 training images for 21 classes, which is about
+70 examples per class, the encoder cannot learn general visual features from
 the data available, so importing them is not an optimisation, it is the whole
 task.
 
@@ -66,12 +66,12 @@ refuting it needs several seeds per variant, which has not been run.
 
 **Both from-scratch variants sit barely above background-only prediction.** VOC
 is mostly background, and a model that predicts background everywhere scores
-about 0.70 on that one class and 0 on the other twenty — a 21-class mean near
+about 0.70 on that one class and 0 on the other twenty, resulting in a 21-class mean near
 0.033. At 0.0610 and 0.0649 these two are only just above that floor.
 
 **All three numbers are lower bounds, not converged results.** See the curves
 below: validation loss flattens by roughly epoch 15, but validation mIoU is
-still climbing at epoch 30 in every run — all three best scores land on or near
+still climbing at epoch 30 in every run, it is observed that all three best scores land on or near
 the final epoch. Cross-entropy is dominated by the many easy background pixels,
 so it saturates while per-class IoU on the rare classes is still improving; the
 loss curve going flat is not evidence of convergence here. 30 epochs was the
@@ -88,19 +88,9 @@ more epochs.
 | ![](results/loss_baseline.png) | ![](results/loss_unet.png) | ![](results/loss_resnet18.png) |
 
 Top row mean IoU, bottom row loss; train and validation on each. Note the shape
-difference between the two rows — that gap is the reason the numbers above are
+difference between the two rows, that gap is the reason the numbers above are
 reported as a floor.
 
-### Not comparable to the number this README used to report
-
-An earlier version of this README reported mIoU ≈ 0.30. That figure is not a
-better result than the 0.0610 above; it is a different measurement. It was taken
-on the **training** split, before the BatchNorm bug below was fixed, and with a
-per-image metric that dropped absent classes via `nanmean` — so it averaged over
-whichever handful of classes appeared in a batch rather than over all 21, and
-every class the model never learned was excluded instead of scoring zero. The
-number here counts those failures. It was removed rather than updated because no
-honest arithmetic converts one into the other.
 
 ### Pretrained checkpoints
 
@@ -126,27 +116,8 @@ done
 ```
 
 `python predict.py --arch resnet18 -w weights_resnet18.pth` writes
-`results/qualitative.png` — an image / ground-truth / prediction grid using the
+`results/qualitative.png` with an image / ground-truth / prediction grid using the
 standard VOC palette. `--log-level DEBUG` adds a per-class IoU table each epoch.
-
----
-
-## What was wrong with the first version
-
-Three bugs worth recording, because they explain the original plateau:
-
-1. **The BatchNorm layers were never called.** All five were constructed in
-   `__init__` but `forward()` applied only `conv → relu`. A sixth layer
-   (`self.bn2`) was also defined twice, silently discarding the 128-channel one.
-2. **The metric counted void pixels.** The loss correctly used
-   `ignore_index=255`, but mIoU did not, so VOC's unlabeled boundary pixels
-   inflated every union and dragged the score down.
-3. **There was no validation split.** Every reported metric was training-set
-   performance, which says nothing about generalization.
-
-The metric is now a vectorized 21×21 confusion matrix accumulated on-device,
-with IoU computed at epoch end — standard, and much faster than the previous
-per-image NumPy loop.
 
 ---
 
@@ -194,30 +165,6 @@ Tests:
 pytest
 ```
 
----
-
-## Notes on defaults
-
-Two defaults were changed from the original run. Batch size dropped from 64 to
-16, because 64 at 256×256 OOMs most consumer GPUs, and Adam `weight_decay` from
-1e-3 to 1e-4, which is the more usual choice for segmentation — 1e-3 was likely
-over-regularising a model this small. Pass `-b 64 --weight-decay 1e-3` to
-reproduce the original configuration.
-
-Augmentation is off by default and applies to the training split only; the
-validation split is never augmented, so val numbers stay comparable across runs.
-
----
-
-## Next
-
-* Multiple seeds per variant, so the `baseline` vs `unet` gap can be called
-  either way instead of left as noise
-* Train on the SBD-augmented split (~10k images) — the 1464-image `train` split
-  is the binding constraint on the from-scratch variants, not the architecture
-* Longer schedules and a learning-rate sweep per variant
-
----
 
 ## License
 
